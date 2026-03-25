@@ -121,9 +121,7 @@ class CommandsCfg:
 
 class ActionsCfg:
     """Action specifications for the MDP."""
-
     joint_pos = mdp.JointPositionActionCfg(asset_name="robot", clip=(-100.0, 100.0), joint_names=".*", scale=0.5, use_default_offset=True, preserve_order=True)
-    # joint_pos = mdp.StackedJointActionsCfg(asset_name="robot", clip=(-100.0, 100.0), joint_names=".*", scale=0.5, use_default_offset=True, preserve_order=True)
 
 @configclass
 class ObservationsCfg:
@@ -337,9 +335,9 @@ class RewardsCfg:
     torso_joint_pos = None
     #contact reward
     fly = RewTerm(func=mdp.fly, weight=-0.2, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"), "threshold": 30.0})
-    feet_contact_num = RewTerm(func=mdp.feet_contact_num, weight=1.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"), "threshold": 30.0, "command_name": "base_velocity",})
-    # feet_air_time = RewTerm(func=mdp.feet_air_time_positive_biped, weight=2.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"), "command_name": "base_velocity", "threshold": 0.45})
-    feet_air_time = RewTerm(func=mdp.feet_air_time_positive_biped_interp, weight=2.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"), "command_name": "base_velocity"})
+    feet_contact_num = RewTerm(func=mdp.FeetContactNumReward, weight=4.0, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"), "threshold": 30.0, "history_length":10, "command_name": "base_velocity",})
+    feet_air_time = RewTerm(func=mdp.feet_air_time_positive_biped,weight=2.0,params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"),"command_name": "base_velocity","threshold": 0.5, "delta": 0.05},)
+    feet_air_time_symmetry = RewTerm(func=mdp.feet_air_time_symmetry_biped,weight=-0.5,params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*foot_roll.*"),"command_name": "base_velocity"},)
 
     #foot constraint reward
     feet_roll = RewTerm(func=mdp.flat_link_roll_exp, weight=0.2, params={"asset_cfg": SceneEntityCfg("robot", body_names=".*foot_roll.*"), "std": 0.3})
