@@ -51,73 +51,6 @@ def terrain_levels_vel(
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
 
-def mask_command_stage(
-    env: MultiStageManagerBasedRLEnv, env_ids: Sequence[int]
-):
-    """Curriculum that modifies the command term based on the current stage of the environment.
-
-    Args:
-        env: The learning environment.
-        env_ids: Not used since all environments are affected.
-        term_name: The name of the command term to modify.
-        stage: The current stage of the environment.
-    """
-    # 所有系数暂时写定，之后应该用cfg传入
-    # print(f"Step {env.common_step_counter}, stage: {env.stage}")
-    if env.common_step_counter - env.prev_stage_update_step >= 1000 and env.common_step_counter > 0:
-        # print(f"Stage {env.stage} update at step {env.common_step_counter}")
-        env.prev_stage_update_step = env.common_step_counter
-        # stage 1, vel command, upper joint command == default pos, waist fixed
-        lin_vel_cfg = env.reward_manager.get_term_cfg("track_lin_vel_xy_exp")
-        ang_vel_cfg = env.reward_manager.get_term_cfg("track_ang_vel_z_exp")
-        avg_vel_rwd = torch.sum(lin_vel_cfg.func(env, **lin_vel_cfg.params) * lin_vel_cfg.weight)/ env.num_envs
-        avg_ang_rwd = torch.sum(ang_vel_cfg.func(env, **ang_vel_cfg.params) * ang_vel_cfg.weight)/ env.num_envs
-        cond1_flag = (avg_vel_rwd > 0.5 * lin_vel_cfg.weight) and (avg_ang_rwd > 0.5 * ang_vel_cfg.weight)
-        print(f"Stage 1 vel cond: {cond1_flag}, Avg Vel Rwd: {avg_vel_rwd}, Avg Ang Rwd: {avg_ang_rwd}")
-        # stage 2, vel command, upper joint command == default pos, waist roll = -base roll, torso keep straight
-        torso_orient_cfg = env.reward_manager.get_term_cfg("torso_orientation_exp")
-        waist_roll_cfg = env.reward_manager.get_term_cfg("waist_roll_track_exp")
-        avg_torso_rwd = torch.sum(torso_orient_cfg.func(env, **torso_orient_cfg.params) * torso_orient_cfg.weight)/ env.num_envs
-        avg_waist_rwd = torch.sum(waist_roll_cfg.func(env, **waist_roll_cfg.params) * waist_roll_cfg.weight)/ env.num_envs
-        cond2_flag = (avg_torso_rwd > 0.8 * torso_orient_cfg.weight) and (avg_waist_rwd > 0.8 * waist_roll_cfg.weight)
-        print(f"Stage 1 orient cond: {cond2_flag}, Avg Torso Rwd: {avg_torso_rwd}, Avg Waist Rwd: {avg_waist_rwd}")
-        # stage 3, upper joint command 概率 enable
-        joint_pos_cfg = env.reward_manager.get_term_cfg("upper_joint_total_track")
-        avg_jpos_rwd = torch.sum(joint_pos_cfg.func(env, **joint_pos_cfg.params) * joint_pos_cfg.weight)/ env.num_envs
-        cond3_flag = (avg_jpos_rwd > 0.6 * joint_pos_cfg.weight)
-        print(f"Stage 3: {cond3_flag}, Avg Joint Pos Rwd: {avg_jpos_rwd}")
-
-        # print(f"Stage 1: {cond1_flag}, Stage 2: {cond2_flag}, Stage 3: {cond3_flag}")
-
-        if env.stage == 1 and cond1_flag and cond2_flag:
-            # stage 3, upper joint command 概率 enable
-            env.command_manager.get_term("joint_pos_cmd").update_task_progress()
-            # action_rate_cfg = env.reward_manager.get_term_cfg("action_rate_l2")
-            # action_rate_cfg.weight = -0.1
-            # env.reward_manager.set_term_cfg("action_rate_l2", action_rate_cfg)
-            upper_jnt_vel_cfg = env.reward_manager.get_term_cfg("upper_joint_stable")
-            upper_jnt_vel_cfg.params["std"] = 2.0
-            env.reward_manager.set_term_cfg("upper_joint_stable", upper_jnt_vel_cfg)
-            upper_jnt_pos_cfg = env.reward_manager.get_term_cfg("upper_joint_track")
-            upper_jnt_pos_cfg.weight = 0.0
-            env.reward_manager.set_term_cfg("upper_joint_track", upper_jnt_pos_cfg)
-            # modify the command term to include joint position command
-
-            # momentum_rwd_cfg = env.reward_manager.get_term_cfg("robot_centroidal_momentum")
-            # momentum_rwd_cfg.weight = -0.5
-            # env.reward_manager.set_term_cfg("robot_centroidal_momentum", momentum_rwd_cfg)
-            link_momentum_rwd_cfg = env.reward_manager.get_term_cfg("robot_limbs_centroidal_momentum_1")
-            link_momentum_rwd_cfg.weight = -1.0
-            env.reward_manager.set_term_cfg("robot_limbs_centroidal_momentum_1", link_momentum_rwd_cfg)
-            link_momentum_rwd_cfg = env.reward_manager.get_term_cfg("robot_limbs_centroidal_momentum_2")
-            link_momentum_rwd_cfg.weight = -1.0
-            env.reward_manager.set_term_cfg("robot_limbs_centroidal_momentum_2", link_momentum_rwd_cfg)
-
-            env.stage += 1
-        elif env.stage >= 2 and cond1_flag and cond2_flag and cond3_flag:
-            env.command_manager.get_term("joint_pos_cmd").update_task_progress()
-    return env.stage + (env.stage >= 2) * env.command_manager.get_term("joint_pos_cmd").task_progress
-
 def modify_stage_cmd(
     env: MultiStageManagerBasedRLEnv, env_ids: Sequence[int]
 ):
@@ -197,11 +130,11 @@ def modify_stage_cmd(
         elif env.stage == 2 and cond1_flag and cond2_flag:
             if env.command_manager.get_term("height_attitude").task_progress >= 0.89:
                 env.command_manager.get_term("joint_pos_cmd").update_task_progress()
-                # action_rate_cfg = env.reward_manager.get_term_cfg("action_rate_l2")
-                # action_rate_cfg.weight = -0.1
-                # env.reward_manager.set_term_cfg("action_rate_l2", action_rate_cfg)
+                action_rate_cfg = env.reward_manager.get_term_cfg("action_rate_l2")
+                action_rate_cfg.weight = -0.1
+                env.reward_manager.set_term_cfg("action_rate_l2", action_rate_cfg)
                 upper_jnt_vel_cfg = env.reward_manager.get_term_cfg("upper_joint_stable")
-                upper_jnt_vel_cfg.params["std"] = 1.5
+                upper_jnt_vel_cfg.params["std"] = 2.0
                 env.reward_manager.set_term_cfg("upper_joint_stable", upper_jnt_vel_cfg)
                 # modify the command term to include joint position command
                 env.stage += 1

@@ -16,12 +16,15 @@ pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pyt
 isaacsim
 # mkdir and clone code
 mkdir GRX_humanoid && cd GRX_humanoid
-git clone git@gitlab.fftaicorp.com:inner/grxisaaclab.git
+git clone https://github.com/FFTAI/fourier_lab.git
 git clone https://github.com/isaac-sim/IsaacLab.git
-cd grxisaaclab
+cd IsaacLab
+# Switch IsaacLab to tag v2.3.0
+git checkout v2.3.0
 # install isaaclab 
-../IsaacLab/isaaclab.sh -i
+./isaaclab.sh -i
 # install rsl_rl from grx_humanoid project file
+cd ../fourier_lab
 ../IsaacLab/isaaclab.sh -p -m pip install -e rsl_rl
 # test the rsl_rl location(option)
 ../IsaacLab/isaaclab.sh -p -m pip show rsl-rl-lib 
@@ -86,19 +89,6 @@ python scripts/tools/convert_urdf.py models/gr3v2_1_1/basic_urdf/gr3v2_1_1_noArm
 ../IsaacLab/isaaclab.sh -p scripts/rsl_rl/play.py --task PPV211HumanoidRoughEnvCfg_WBC_FULL_Play
 # log
 tensorboard --logdir  logs/rsl_rl/ppv211_humanoid_rough_wbc_full/
-```
-
-## Run For WBC MASK(PPV233 & PPV224)
-
-```
-# convert robot model from urdf to usd
-python scripts/tools/convert_urdf.py models/gr3v2_3_3/basic_urdf/gr3v2_3_3_noArmColli.urdf  exts/GRX_humanoid/GRX_humanoid/assets/Robots/ppv233_noArmCollision.usd --merge-joints
-# run script for training
-../IsaacLab/isaaclab.sh -p scripts/rsl_rl/train.py --task PPV233_Mask_WBC --headless
-# run script for playing
-../IsaacLab/isaaclab.sh -p scripts/rsl_rl/play.py --task PPV233_Mask_WBC_Play
-# log
-tensorboard --logdir  logs/rsl_rl/ppv233_mask_wbc_full/
 ```
 
 ## Debug
